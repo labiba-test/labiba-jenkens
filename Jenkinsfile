@@ -1,5 +1,5 @@
 pipeline {
-  agent { label 'windows' }
+  agent { label 'Windows-actions' }
 
   options {
     timestamps()
