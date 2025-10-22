@@ -13,10 +13,10 @@ pipeline {
   environment {
     IIS_SITE      = "Site1"
     IIS_APPPOOL   = "Site1Pool"
-    IIS_SITEPATH  = "\\\\GITHUB-ACTION\\Site1"
-    BACKUP_ROOT   = "\\\\GITHUB-ACTION\\IIS-Backup"
+    IIS_SITEPATH  = "C:\\inetpub\\labiba\\Site1"         
+    BACKUP_ROOT   = "C:\\IIS-Backups"                    
     ARTIFACT_DIR  = "artifact"
-    HEALTH_URL    = "http://localhost/"
+    HEALTH_URL    = "http://localhost:8001/"                  
     EXPECT_TEXT   = "Hello Abdullah"
   }
 
@@ -69,7 +69,6 @@ pipeline {
 
           # Deploy, excluding Jenkins workspace folders to prevent self-deletion
           & $script `
-            -SiteName "${env:IIS_SITE}" `
             -AppPool  "${env:IIS_APPPOOL}" `
             -SitePath "${env:IIS_SITEPATH}" `
             -BuildDir (Join-Path $env:WORKSPACE "${env:ARTIFACT_DIR}")
@@ -96,7 +95,7 @@ pipeline {
 
   post {
     success {
-      echo '✅ Deployed successfully to Site1!'
+      echo '✅ Deployed successfully to Site1 (C:\\inetpub\\labiba\\Site1)!'
     }
     failure {
       echo '❌ Deployment failed. Rollback attempted.'
