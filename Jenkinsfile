@@ -21,6 +21,7 @@ pipeline {
   }
 
   stages {
+
     stage('Checkout') {
       steps {
         checkout scm
@@ -29,9 +30,19 @@ pipeline {
 
     stage('Prepare Artifact') {
       steps {
-        pwsh '''
-          New-Item -Path "${env:ARTIFACT_DIR}" -ItemType Directory -Force | Out-Null
-          Copy-Item -Path "index.html" -Destination "${env:ARTIFACT_DIR}" -Force
+        powershell '''
+          Write-Host "==> Preparing HTML artifact..."
+          $artifact = Join-Path $env:WORKSPACE "${env:ARTIFACT_DIR}"
+          if (-not (Test-Path $artifact)) {
+            New-Item -ItemType Directory -Path $artifact | Out-Null
+          }
+
+          # Copy index.html to artifact folder
+          Copy-Item -Path (Join-Path $env:WORKSPACE "index.html") -Destination $artifact -Force
+
+          # Display artifact contents for confirmation
+          Write-Host "==> Artifact contents:"
+          Get-ChildItem -Path $artifact -Recurse
         '''
         archiveArtifacts artifacts: "${ARTIFACT_DIR}/**", fingerprint: true
       }
@@ -39,8 +50,10 @@ pipeline {
 
     stage('Backup Current Site') {
       steps {
-        pwsh '''
-          & "${PWD}\\scripts\\backup.ps1" `
+        powershell '''
+          Write-Host "==> Running IIS backup..."
+          $script = Join-Path $env:WORKSPACE "scripts\\backup.ps1"
+          & $script `
             -SiteName "${env:IIS_SITE}" `
             -SitePath "${env:IIS_SITEPATH}" `
             -BackupRoot "${env:BACKUP_ROOT}"
@@ -50,20 +63,26 @@ pipeline {
 
     stage('Deploy to IIS') {
       steps {
-        pwsh '''
-          & "${PWD}\\scripts\\deploy.ps1" `
+        powershell '''
+          Write-Host "==> Starting deployment..."
+          $script = Join-Path $env:WORKSPACE "scripts\\deploy.ps1"
+
+          # Deploy, excluding Jenkins workspace folders to prevent self-deletion
+          & $script `
             -SiteName "${env:IIS_SITE}" `
             -AppPool  "${env:IIS_APPPOOL}" `
             -SitePath "${env:IIS_SITEPATH}" `
-            -BuildDir "${PWD}\\${env:ARTIFACT_DIR}"
+            -BuildDir (Join-Path $env:WORKSPACE "${env:ARTIFACT_DIR}")
         '''
       }
     }
 
     stage('Health Check') {
       steps {
-        pwsh '''
-          & "${PWD}\\scripts\\test-and-rollback.ps1" `
+        powershell '''
+          Write-Host "==> Performing health check..."
+          $script = Join-Path $env:WORKSPACE "scripts\\test-and-rollback.ps1"
+          & $script `
             -Url "${env:HEALTH_URL}" `
             -BackupRoot "${env:BACKUP_ROOT}" `
             -SiteName "${env:IIS_SITE}" `
