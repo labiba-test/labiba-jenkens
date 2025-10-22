@@ -7,25 +7,35 @@ param(
 $timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
 $backupName = "${SiteName}-${timestamp}"
 $siteZip = Join-Path $BackupRoot "$backupName-content.zip"
-$configTag = $backupName  # Used by appcmd
+$configTag = $backupName
 
 # Ensure backup directory exists
-New-Item -Path $BackupRoot -ItemType Directory -Force | Out-Null
-
-Write-Host "==> Zipping site content from $SitePath to $siteZip"
-if (Test-Path $SitePath) {
-  Add-Type -AssemblyName System.IO.Compression.FileSystem
-  if (Test-Path $siteZip) { Remove-Item $siteZip -Force }
-  [System.IO.Compression.ZipFile]::CreateFromDirectory($SitePath, $siteZip)
-} else {
-  Write-Warning "Site path not found: $SitePath (skipping content backup)"
+if (-not (Test-Path $BackupRoot)) {
+  Write-Host "==> Creating backup root $BackupRoot"
+  New-Item -Path $BackupRoot -ItemType Directory -Force | Out-Null
 }
+
+# Create a temporary folder excluding Jenkins workspace logs
+$tempFolder = Join-Path $env:TEMP "$backupName-temp"
+if (Test-Path $tempFolder) { Remove-Item $tempFolder -Recurse -Force }
+New-Item -Path $tempFolder -ItemType Directory -Force | Out-Null
+
+Write-Host "==> Copying site content to temp folder for safe backup"
+Get-ChildItem -Path $SitePath -Exclude "workspace", "@tmp" | Copy-Item -Destination $tempFolder -Recurse -Force -ErrorAction SilentlyContinue
+
+Write-Host "==> Creating ZIP archive at $siteZip"
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+if (Test-Path $siteZip) { Remove-Item $siteZip -Force }
+[System.IO.Compression.ZipFile]::CreateFromDirectory($tempFolder, $siteZip)
+
+# Clean up temp folder
+Remove-Item $tempFolder -Recurse -Force -ErrorAction SilentlyContinue
 
 Write-Host "==> Backing up IIS configuration via appcmd: $configTag"
 $inetsrv = "$env:SystemRoot\System32\inetsrv"
 & "$inetsrv\appcmd.exe" add backup "$configTag" | Write-Host
 
-# Output metadata JSON
+# Write metadata
 $meta = @{
   SiteName     = $SiteName
   SitePath     = $SitePath
@@ -34,7 +44,6 @@ $meta = @{
   ConfigBackup = $configTag
   CreatedAt    = (Get-Date)
 }
-$metaPath = Join-Path $BackupRoot "$backupName.json"
-$meta | ConvertTo-Json | Set-Content -Path $metaPath -Encoding UTF8
+$meta | ConvertTo-Json | Set-Content (Join-Path $BackupRoot "$backupName.json")
 
 Write-Host "==> Backup complete: $backupName"
