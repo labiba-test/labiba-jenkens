@@ -3,7 +3,7 @@ param(
   [string]$BackupRoot = "\\GITHUB-ACTION\IIS-Backup",
   [string]$SiteName = "Site1",
   [string]$AppPool  = "Site1Pool",
-  [string]$SitePath = "\\GITHUB-ACTION\Site1",
+  [string]$SitePath = "C:\inetpub\labiba\Site1",
   [int]$ExpectedStatus = 200,
   [string]$ExpectedText = "Hello Abdullah"
 )
@@ -26,7 +26,8 @@ function Restore-LatestBackup {
   Write-Host "==> Restoring site content from $siteZip"
   if (Test-Path $siteZip) {
     try { Stop-WebAppPool -Name $AppPool -ErrorAction Stop } catch {}
-    if (Test-Path $SitePath) { Get-ChildItem $SitePath -Force | Remove-Item -Recurse -Force }
+    if (Test-Path $SitePath) { Get-ChildItem $SitePath -Force -Exclude "workspace","@tmp","durable*","logs" |
+  Remove-Item -Recurse -Force -ErrorAction SilentlyContinue }
     Add-Type -AssemblyName System.IO.Compression.FileSystem
     [System.IO.Compression.ZipFile]::ExtractToDirectory($siteZip, $SitePath)
     Start-WebAppPool -Name $AppPool
