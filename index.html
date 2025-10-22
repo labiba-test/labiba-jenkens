@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>My Site</title>
+  <meta name="description" content="Simple one-page starter." />
+  <style>
+    :root { --bg:#0f172a; --fg:#e5e7eb; --muted:#94a3b8; --card:#111827; --accent:#22d3ee; }
+    * { box-sizing: border-box; }
+    html,body { height: 100%; }
+    body {
+      margin: 0; font: 16px/1.6 system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Arial, "Apple Color Emoji","Segoe UI Emoji";
+      color: var(--fg); background: radial-gradient(1200px 700px at 10% -10%, #1f2937, transparent), var(--bg);
+    }
+    header { padding: 24px; max-width: 1100px; margin: 0 auto; display:flex; align-items:center; justify-content:space-between; }
+    .logo { font-weight: 800; letter-spacing: .5px; }
+    nav a { color: var(--muted); text-decoration: none; margin-left: 16px; }
+    nav a:hover { color: var(--fg); }
+    .hero {
+      max-width: 1100px; margin: 48px auto; padding: 24px;
+      display:grid; gap:24px; grid-template-columns: 1.1fr .9fr; align-items:center;
+    }
+    .hero h1 { font-size: clamp(28px, 5vw, 48px); line-height: 1.1; margin: 0 0 12px; }
+    .hero p { color: var(--muted); margin: 0 0 20px; }
+    .cta { display:inline-block; padding:12px 18px; border-radius:12px; background: linear-gradient(90deg, var(--accent), #60a5fa); color:#0b1020; font-weight:700; text-decoration:none; }
+    .card {
+      background: linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.02));
+      border: 1px solid rgba(255,255,255,.06);
+      border-radius: 16px; padding: 20px;
+      box-shadow: 0 10px 30px rgba(0,0,0,.25);
+    }
+    .grid { max-width:1100px; margin: 24px auto; padding: 0 24px; display:grid; grid-template-columns: repeat(auto-fit,minmax(240px,1fr)); gap:16px; }
+    h2 { max-width:1100px; margin:48px auto 8px; padding:0 24px; font-size: clamp(20px, 3vw, 28px); }
+    footer { max-width:1100px; margin: 48px auto; padding: 24px; color: var(--muted); text-align:center; }
+    code, pre { background: #0b1220; border:1px solid rgba(255,255,255,.06); padding: .3rem .45rem; border-radius:8px; }
+    .img {
+      aspect-ratio: 16/10; border-radius: 16px; border:1px solid rgba(255,255,255,.06);
+      background:
+        radial-gradient(60% 40% at 30% 30%, rgba(34,211,238,.18), transparent 60%),
+        conic-gradient(from 200deg, rgba(96,165,250,.14), transparent 40%),
+        #0b1220;
+    }
+    @media (max-width: 900px){ .hero{ grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="logo">MySite</div>
+    <nav>
+      <a href="#about">About</a>
+      <a href="#features">Features</a>
+      <a href="#contact">Contact</a>
+    </nav>
+  </header>
+
+  <section class="hero">
+    <div>
+      <h1>Deploy fast. Iterate faster.</h1>
+      <p>This is a minimal starter page. Edit the text, swap the colors, and ship it. Works great on GitHub Pages.</p>
+      <a class="cta" href="#get-started">Get Started</a>
+    </div>
+    <div class="img card" aria-hidden="true"></div>
+  </section>
+
+  <h2 id="about">About</h2>
+  <div class="grid">
+    <div class="card">
+      <h3>Single file</h3>
+      <p>Everything is in <code>index.html</code>. No frameworks, no build steps.</p>
+    </div>
+    <div class="card">
+      <h3>Responsive</h3>
+      <p>Grid + fluid type. Looks decent on phones and desktops out of the box.</p>
+    </div>
+    <div class="card">
+      <h3>Easy to tweak</h3>
+      <p>Change colors in the <code>:root</code> CSS variables. Edit content and push.</p>
+    </div>
+  </div>
+
+  <h2 id="features">Quick Start</h2>
+  <div class="grid">
+    <div class="card">
+      <h4>1) Clone</h4>
+      <pre><code>git clone https://github.com/&lt;your-user&gt;/&lt;your-repo&gt;.git
+cd &lt;your-repo&gt;</code></pre>
+    </div>
+    <div class="card">
+      <h4>2) Add file</h4>
+      <pre><code>copy this index.html into the repo
+git add index.html
+git commit -m "add site"
+git push origin main</code></pre>
+    </div>
+    <div class="card">
+      <h4>3) Publish</h4>
+      <p>On GitHub: Settings → Pages → Source: <b>Deploy from a branch</b>, Branch: <b>main</b>, Folder: <b>/root</b>.</p>
+    </div>
+  </div>
+
+  <h2 id="contact">Contact</h2>
+  <div class="grid">
+    <div class="card">
+      <p>Replace this with your email or socials. You can also add a form or link tree.</p>
+    </div>
+  </div>
+
+  <footer>
+    <small>© <span id="y"></span> Abdullah. Deployed with ❤️.</small>
+  </footer>
+
+  <script>
+    document.getElementById('y').textContent = new Date().getFullYear();
+  </script>
+</body>
+</html>
