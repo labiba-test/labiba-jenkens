@@ -13,8 +13,10 @@ function Restore-LatestBackup {
 
   Import-Module WebAdministration
 
-  $meta = Get-ChildItem -Path $BackupRoot -Filter "$SiteName-*.json" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+  $meta = Get-ChildItem -Path $BackupRoot -Filter "$SiteName-*.json" |
+          Sort-Object LastWriteTime -Descending | Select-Object -First 1
   if (-not $meta) { throw "No backups found in $BackupRoot" }
+
   $info = Get-Content $meta.FullName | ConvertFrom-Json
   $siteZip = $info.SiteZip
   $configTag = $info.ConfigBackup
@@ -26,23 +28,25 @@ function Restore-LatestBackup {
   Write-Host "==> Restoring site content from $siteZip"
   if (Test-Path $siteZip) {
     try { Stop-WebAppPool -Name $AppPool -ErrorAction SilentlyContinue } catch {}
+
     if (Test-Path $SitePath) {
       Get-ChildItem $SitePath -Force -Exclude "workspace","@tmp","durable*","logs" |
         Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
     }
+
     Add-Type -AssemblyName System.IO.Compression.FileSystem
     [System.IO.Compression.ZipFile]::ExtractToDirectory($siteZip, $SitePath)
 
-    # Retry logic for IIS app pool startup
+    # Retry IIS app pool startup
     $maxRetries = 5
     $retryDelay = 3
     for ($i = 1; $i -le $maxRetries; $i++) {
         try {
             Start-WebAppPool -Name $AppPool -ErrorAction Stop
-            Write-Host "App pool $AppPool started successfully (attempt $i)."
+            Write-Host ("App pool {0} started successfully (attempt {1})." -f $AppPool, $i)
             break
         } catch {
-            Write-Warning "Attempt $i: IIS still busy, retrying in $retryDelay seconds..."
+            Write-Warning ("Attempt {0}: IIS still busy, retrying in {1} seconds..." -f $i, $retryDelay)
             Start-Sleep -Seconds $retryDelay
             if ($i -eq $maxRetries) {
                 throw "App pool $AppPool failed to start after $maxRetries attempts."
@@ -57,14 +61,19 @@ function Restore-LatestBackup {
 try {
   Write-Host "==> Health check: $Url"
   $resp = Invoke-WebRequest -Uri $Url -UseBasicParsing -TimeoutSec 15
-  if ($resp.StatusCode -ne $ExpectedStatus) { throw "Bad status: $($resp.StatusCode)" }
+
+  if ($resp.StatusCode -ne $ExpectedStatus) {
+    throw ("Bad status: {0}" -f $resp.StatusCode)
+  }
+
   if ($ExpectedText -and ($resp.Content -notmatch [regex]::Escape($ExpectedText))) {
     throw "Expected text not found"
   }
+
   Write-Host "Health check passed."
 }
 catch {
-  Write-Warning "Health check failed: $_"
+  Write-Warning ("Health check failed: {0}" -f $_)
   Write-Host "==> Rolling back to last backup"
   Restore-LatestBackup -BackupRoot $BackupRoot -SiteName $SiteName -AppPool $AppPool -SitePath $SitePath
   throw "Deployment failed health check; rolled back."
