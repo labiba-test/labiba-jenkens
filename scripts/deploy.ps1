@@ -1,135 +1,64 @@
-<#
-.SYNOPSIS
-    Safely deploys static or ASP.NET content from Jenkins artifacts to IIS.
-
-.DESCRIPTION
-    1. Checks IIS service (W3SVC)
-    2. Writes app_offline.htm (graceful maintenance mode)
-    3. Stops (or creates) the target App Pool
-    4. Mirrors files from Jenkins build output using Robocopy
-    5. Restarts the App Pool with retry logic
-    6. Removes maintenance file
-    7. Logs operations to %TEMP%\robocopy-deploy.log
-#>
-
 param(
-  [string]$AppPool  = 'Site1Pool',
-  [string]$SitePath = 'C:\inetpub\labiba\Site1',        # actual IIS site root
-  [string]$BuildDir = "$env:WORKSPACE\artifact"          # built by Jenkins pipeline
+  [string]$AppPool    = 'Site1Pool',
+  [string]$SitePath   = 'C:\inetpub\labiba\Site1',
+  [string]$BuildDir   = "$env:WORKSPACE\artifact"
 )
 
-Import-Module WebAdministration -ErrorAction Stop
+Import-Module WebAdministration
 
-Write-Host "============================================================="
-Write-Host "🚀 Starting Deployment to IIS"
-Write-Host "-------------------------------------------------------------"
-Write-Host "App Pool : $AppPool"
-Write-Host "Site Path: $SitePath"
-Write-Host "Build Dir: $BuildDir"
-Write-Host "============================================================="
+Write-Host "==> Starting deployment..."
 
-# --- Check IIS Service Status ---
-$service = Get-Service -Name 'W3SVC' -ErrorAction SilentlyContinue
-if (-not $service) {
-    throw "❌ IIS service (W3SVC) not found. Is IIS installed?"
-}
-if ($service.Status -ne 'Running') {
-    Write-Host "==> Starting IIS service (W3SVC)..."
-    Start-Service 'W3SVC'
-    Start-Sleep -Seconds 3
-}
-Write-Host "✅ IIS service is running."
-
-# --- Maintenance Mode (app_offline.htm) ---
+# Graceful drain (optional)
 $appOffline = Join-Path $SitePath 'app_offline.htm'
-try {
-    'Maintenance in progress…' | Out-File -Encoding utf8 -FilePath $appOffline -Force
-    Write-Host "==> app_offline.htm placed for maintenance mode."
-} catch {
-    Write-Warning "⚠️ Could not create app_offline.htm: $_"
-}
+'Maintenance in progress...' | Out-File -Encoding utf8 -FilePath $appOffline -Force
 
-# --- Stop or Create App Pool ---
+# Stop or create app pool
 if (Test-Path "IIS:\AppPools\$AppPool") {
-    Write-Host "==> Stopping App Pool $AppPool..."
-    try {
-        Stop-WebAppPool -Name $AppPool -ErrorAction Stop
-        Start-Sleep -Seconds 3
-        Write-Host "✅ App Pool stopped successfully."
-    } catch {
-        Write-Warning "⚠️ Failed to stop App Pool (might already be stopped): $_"
-    }
+  Write-Host "==> Stopping app pool $AppPool"
+  Stop-WebAppPool -Name $AppPool -ErrorAction SilentlyContinue
 } else {
-    Write-Host "==> Creating new App Pool $AppPool"
-    New-WebAppPool -Name $AppPool | Out-Null
+  Write-Host "!! App pool $AppPool not found. Creating new one."
+  New-WebAppPool -Name $AppPool | Out-Null
 }
 
-# --- Validate Build Output ---
+# Validate build output
 if (-not (Test-Path $BuildDir)) {
-    throw "❌ Build output not found: $BuildDir"
-}
-Write-Host "✅ Build directory validated."
-
-# --- Ensure Destination Exists ---
-if (-not (Test-Path $SitePath)) {
-    Write-Host "==> Creating site directory $SitePath"
-    New-Item -ItemType Directory -Path $SitePath -Force | Out-Null
+  throw "Build output not found: $BuildDir"
 }
 
-# --- Sync Files Using Robocopy ---
-Write-Host "==> Syncing content from build to site..."
+# Ensure destination exists
+if (-not (Test-Path $SitePath)) { 
+  New-Item -ItemType Directory -Path $SitePath -Force | Out-Null 
+}
+
+# Sync new content
+Write-Host "==> Syncing content from $BuildDir to $SitePath"
 $rcLog = Join-Path $env:TEMP "robocopy-deploy.log"
-$excludeDirs = @("workspace", "@tmp", "durable*", "logs")
+& robocopy $BuildDir $SitePath *.* /MIR /R:2 /W:2 /NFL /NDL /NP /LOG:$rcLog /XD "workspace" "@tmp"
 
-# Build robocopy arguments
-$robocopyArgs = @()
-$robocopyArgs += "`"$BuildDir`""
-$robocopyArgs += "`"$SitePath`""
-$robocopyArgs += "*.* /MIR /R:2 /W:2 /NFL /NDL /NP /LOG:`"$rcLog`""
-foreach ($dir in $excludeDirs) { $robocopyArgs += "/XD `"$dir`"" }
+# Reapply permissions just in case
+$appPoolIdentity = "IIS AppPool\$AppPool"
+icacls $SitePath /grant "${appPoolIdentity}:(OI)(CI)(M)" /T | Out-Null
+icacls $SitePath /grant "IIS_IUSRS:(OI)(CI)(RX,M)" /T | Out-Null
 
-cmd.exe /c "robocopy $($robocopyArgs -join ' ')"
-$exitCode = $LASTEXITCODE
-
-if ($exitCode -ge 8) {
-    throw "❌ Robocopy failed (exit code $exitCode). Check log: $rcLog"
-}
-Write-Host "✅ Files synchronized successfully."
-Write-Host "📄 Log File: $rcLog"
-
-# --- Restart App Pool with Retry Logic ---
-Write-Host "==> Starting App Pool $AppPool (with retry)..."
+# Retry logic to start the app pool
 $maxRetries = 5
-$retry = 0
-$started = $false
-
-while (-not $started -and $retry -lt $maxRetries) {
+$retryDelay = 3
+for ($i = 1; $i -le $maxRetries; $i++) {
     try {
-        Start-Sleep -Seconds 3
         Start-WebAppPool -Name $AppPool -ErrorAction Stop
-        $state = (Get-WebAppPoolState -Name $AppPool).Value
-        if ($state -eq 'Started') {
-            Write-Host "✅ App Pool $AppPool started successfully."
-            $started = $true
-            break
-        } else {
-            throw "Current state: $state"
-        }
-    }
-    catch {
-        $retry++
-        Write-Warning ("Attempt ${retry}: App Pool not ready yet. Waiting...")
-        if ($retry -eq $maxRetries) {
-            Write-Error "❌ Failed to start App Pool after $maxRetries attempts."
-            throw
+        Write-Host "✅ App pool $AppPool started successfully (attempt $i)."
+        break
+    } catch {
+        Write-Warning "⚠️ Attempt $i: IIS still busy, waiting $retryDelay seconds..."
+        Start-Sleep -Seconds $retryDelay
+        if ($i -eq $maxRetries) {
+            throw "❌ App pool $AppPool failed to start after $maxRetries attempts."
         }
     }
 }
 
-# --- Remove Maintenance File ---
+# Remove maintenance page
 Remove-Item $appOffline -ErrorAction SilentlyContinue
-Write-Host "✅ app_offline.htm removed."
 
-Write-Host "==> Deployment completed successfully!"
-Write-Host "============================================================="
-exit 0
+Write-Host "==> Deployment complete."
