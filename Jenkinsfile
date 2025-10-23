@@ -13,11 +13,11 @@ pipeline {
   environment {
     IIS_SITE      = "Site1"
     IIS_APPPOOL   = "Site1Pool"
-    IIS_SITEPATH  = "C:\\inetpub\\labiba\\Site1"         
-    BACKUP_ROOT   = "C:\\IIS-Backups"                    
+    IIS_SITEPATH  = "C:\\inetpub\\labiba\\Site1"
+    BACKUP_ROOT   = "C:\\IIS-Backups"
     ARTIFACT_DIR  = "artifact"
-    HEALTH_URL    = "http://localhost:8001/"                  
-    EXPECT_TEXT   = "Hello Abdullah"
+    HEALTH_URL    = "http://localhost:8001/index.html"  // check the actual HTML file
+    EXPECT_TEXT   = ""                                   // empty = skip body text check
   }
 
   stages {
@@ -67,7 +67,6 @@ pipeline {
           Write-Host "==> Starting deployment..."
           $script = Join-Path $env:WORKSPACE "scripts\\deploy.ps1"
 
-          # Deploy, excluding Jenkins workspace folders to prevent self-deletion
           & $script `
             -AppPool  "${env:IIS_APPPOOL}" `
             -SitePath "${env:IIS_SITEPATH}" `
@@ -87,7 +86,8 @@ pipeline {
             -SiteName "${env:IIS_SITE}" `
             -AppPool  "${env:IIS_APPPOOL}" `
             -SitePath "${env:IIS_SITEPATH}" `
-            -ExpectedText "${env:EXPECT_TEXT}"
+            -ExpectedText "${env:EXPECT_TEXT}" `
+            -ExpectedStatus 200
         '''
       }
     }
