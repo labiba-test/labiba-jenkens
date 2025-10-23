@@ -5,7 +5,6 @@ param(
 )
 
 Import-Module WebAdministration
-
 Write-Host "==> Starting deployment..."
 
 # Graceful drain (optional)
@@ -47,13 +46,13 @@ $retryDelay = 3
 for ($i = 1; $i -le $maxRetries; $i++) {
     try {
         Start-WebAppPool -Name $AppPool -ErrorAction Stop
-        Write-Host "✅ App pool $AppPool started successfully (attempt $i)."
+        Write-Host "App pool $AppPool started successfully (attempt $i)."
         break
     } catch {
-        Write-Warning "⚠️ Attempt $i: IIS still busy, waiting $retryDelay seconds..."
+        Write-Warning "Attempt $i: IIS still busy, waiting $retryDelay seconds..."
         Start-Sleep -Seconds $retryDelay
         if ($i -eq $maxRetries) {
-            throw "❌ App pool $AppPool failed to start after $maxRetries attempts."
+            throw "App pool $AppPool failed to start after $maxRetries attempts."
         }
     }
 }

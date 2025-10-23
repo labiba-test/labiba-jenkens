@@ -39,13 +39,13 @@ function Restore-LatestBackup {
     for ($i = 1; $i -le $maxRetries; $i++) {
         try {
             Start-WebAppPool -Name $AppPool -ErrorAction Stop
-            Write-Host "✅ App pool $AppPool started successfully (attempt $i)."
+            Write-Host "App pool $AppPool started successfully (attempt $i)."
             break
         } catch {
-            Write-Warning "⚠️ Attempt $i: IIS still busy, retrying in $retryDelay seconds..."
+            Write-Warning "Attempt $i: IIS still busy, retrying in $retryDelay seconds..."
             Start-Sleep -Seconds $retryDelay
             if ($i -eq $maxRetries) {
-                throw "❌ App pool $AppPool failed to start after $maxRetries attempts."
+                throw "App pool $AppPool failed to start after $maxRetries attempts."
             }
         }
     }
@@ -61,10 +61,10 @@ try {
   if ($ExpectedText -and ($resp.Content -notmatch [regex]::Escape($ExpectedText))) {
     throw "Expected text not found"
   }
-  Write-Host "✅ Health check passed"
+  Write-Host "Health check passed."
 }
 catch {
-  Write-Warning "❌ Health check failed: $_"
+  Write-Warning "Health check failed: $_"
   Write-Host "==> Rolling back to last backup"
   Restore-LatestBackup -BackupRoot $BackupRoot -SiteName $SiteName -AppPool $AppPool -SitePath $SitePath
   throw "Deployment failed health check; rolled back."
