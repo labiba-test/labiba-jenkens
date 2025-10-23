@@ -7,40 +7,41 @@ param(
 Import-Module WebAdministration
 Write-Host "==> Starting deployment..."
 
-# Graceful drain (optional)
+# Step 1: Gracefully drain live traffic
 $appOffline = Join-Path $SitePath 'app_offline.htm'
 'Maintenance in progress...' | Out-File -Encoding utf8 -FilePath $appOffline -Force
 
-# Stop or create app pool
+# Step 2: Stop or create app pool
 if (Test-Path "IIS:\AppPools\$AppPool") {
-  Write-Host "==> Stopping app pool $AppPool"
-  Stop-WebAppPool -Name $AppPool -ErrorAction SilentlyContinue
+    Write-Host "==> Stopping app pool $AppPool"
+    Stop-WebAppPool -Name $AppPool -ErrorAction SilentlyContinue
 } else {
-  Write-Host "!! App pool $AppPool not found. Creating new one."
-  New-WebAppPool -Name $AppPool | Out-Null
+    Write-Host "!! App pool $AppPool not found. Creating it."
+    New-WebAppPool -Name $AppPool | Out-Null
 }
 
-# Validate build output
+# Step 3: Validate build output
 if (-not (Test-Path $BuildDir)) {
-  throw "Build output not found: $BuildDir"
+    throw "Build output not found: $BuildDir"
 }
 
-# Ensure destination exists
-if (-not (Test-Path $SitePath)) { 
-  New-Item -ItemType Directory -Path $SitePath -Force | Out-Null 
+# Step 4: Ensure target path exists
+if (-not (Test-Path $SitePath)) {
+    New-Item -ItemType Directory -Path $SitePath -Force | Out-Null
 }
 
-# Sync new content
+# Step 5: Sync content safely
 Write-Host "==> Syncing content from $BuildDir to $SitePath"
 $rcLog = Join-Path $env:TEMP "robocopy-deploy.log"
 & robocopy $BuildDir $SitePath *.* /MIR /R:2 /W:2 /NFL /NDL /NP /LOG:$rcLog /XD "workspace" "@tmp"
 
-# Reapply permissions just in case
+# Step 6: Reapply permissions
 $appPoolIdentity = "IIS AppPool\$AppPool"
+Write-Host "==> Reapplying IIS permissions..."
 icacls $SitePath /grant "${appPoolIdentity}:(OI)(CI)(M)" /T | Out-Null
 icacls $SitePath /grant "IIS_IUSRS:(OI)(CI)(RX,M)" /T | Out-Null
 
-# Retry logic to start the app pool
+# Step 7: Retry logic to start app pool
 $maxRetries = 5
 $retryDelay = 3
 for ($i = 1; $i -le $maxRetries; $i++) {
@@ -49,7 +50,7 @@ for ($i = 1; $i -le $maxRetries; $i++) {
         Write-Host "App pool $AppPool started successfully (attempt $i)."
         break
     } catch {
-        Write-Warning "Attempt $i: IIS still busy, waiting $retryDelay seconds..."
+        Write-Warning ("Attempt {0}: IIS still busy, waiting {1} seconds..." -f $i, $retryDelay)
         Start-Sleep -Seconds $retryDelay
         if ($i -eq $maxRetries) {
             throw "App pool $AppPool failed to start after $maxRetries attempts."
@@ -57,7 +58,7 @@ for ($i = 1; $i -le $maxRetries; $i++) {
     }
 }
 
-# Remove maintenance page
+# Step 8: Remove maintenance file
 Remove-Item $appOffline -ErrorAction SilentlyContinue
 
 Write-Host "==> Deployment complete."
